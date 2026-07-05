@@ -30,21 +30,27 @@ RUN mkdir -p /opt/noVNC && \
     ln -s /opt/noVNC/vnc.html /opt/noVNC/index.html && \
     curl -fsSL https://github.com/novnc/websockify/archive/v0.11.0.tar.gz | tar -xz -C /opt/noVNC/utils --strip-components=1
 
-# Robust Android Studio download + safe extraction
-RUN mkdir -p /opt && cd /opt && \
-    for i in 1 2 3 4 5; do \
-        echo "Download attempt $i..." && \
-        curl -L --retry 5 --retry-delay 12 --max-time 350 \
-            -o android-studio.tar.gz \
-            "https://redirector.gvt1.com/edgedl/android/studio/ide-zips/2026.1.1.10/android-studio-quail1-patch2-linux.tar.gz" && \
-        SIZE=$(stat -c%s android-studio.tar.gz 2>/dev/null || echo 0) && \
-        if [ "$SIZE" -gt 1000000000 ]; then echo "✅ Download OK"; break; fi; \
-        echo "Retry..."; sleep 35; \
-    done && \
-    tar -xzf android-studio.tar.gz && \
-    rm -f android-studio.tar.gz && \
+# Robust Android Studio download + reliable extraction
+RUN curl -L --retry 5 --retry-delay 12 --max-time 400 \
+        -o /tmp/android-studio.tar.gz \
+        "https://redirector.gvt1.com/edgedl/android/studio/ide-zips/2026.1.1.10/android-studio-quail1-patch2-linux.tar.gz" && \
+    echo "✅ Download complete, extracting..." && \
+    mkdir -p /tmp/as_extract && \
+    tar -xzf /tmp/android-studio.tar.gz -C /tmp/as_extract && \
+    rm -f /tmp/android-studio.tar.gz && \
+    EXTRACTED=$(ls /tmp/as_extract | head -1) && \
+    if [ -z "$EXTRACTED" ]; then \
+        echo "ERROR: Extraction produced no directory"; \
+        ls /tmp/as_extract; exit 1; \
+    fi && \
     rm -rf /opt/android-studio && \
-    mv android-studio /opt/android-studio && \
+    mv "/tmp/as_extract/$EXTRACTED" /opt/android-studio && \
+    rm -rf /tmp/as_extract && \
+    if [ ! -d /opt/android-studio ]; then \
+        echo "ERROR: Final placement failed"; \
+        ls -la /opt/; exit 1; \
+    fi && \
+    echo "✅ Android Studio installed at /opt/android-studio" && \
     chmod -R 755 /opt/android-studio
 
 RUN mkdir -p /home/$USER/Android/Sdk /home/$USER/Projects /home/$USER/.vnc && \

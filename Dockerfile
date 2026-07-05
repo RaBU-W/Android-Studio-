@@ -1,7 +1,6 @@
 # Render.com Free Tier friendly Dockerfile
 # Android Studio 2026.1.1.10 (Quail 1 Patch 2)
 # Single file - no COPY needed
-# For Render: Connect repo + select Language: Docker + Free instance
 
 FROM ubuntu:22.04
 
@@ -30,7 +29,7 @@ RUN mkdir -p /opt/noVNC && \
     ln -s /opt/noVNC/vnc.html /opt/noVNC/index.html && \
     curl -fsSL https://github.com/novnc/websockify/archive/v0.11.0.tar.gz | tar -xz -C /opt/noVNC/utils --strip-components=1
 
-# Robust Android Studio download + reliable extraction
+# Android Studio (robust)
 RUN curl -L --retry 5 --retry-delay 12 --max-time 400 \
         -o /tmp/android-studio.tar.gz \
         "https://redirector.gvt1.com/edgedl/android/studio/ide-zips/2026.1.1.10/android-studio-quail1-patch2-linux.tar.gz" && \
@@ -39,24 +38,15 @@ RUN curl -L --retry 5 --retry-delay 12 --max-time 400 \
     tar -xzf /tmp/android-studio.tar.gz -C /tmp/as_extract && \
     rm -f /tmp/android-studio.tar.gz && \
     EXTRACTED=$(ls /tmp/as_extract | head -1) && \
-    if [ -z "$EXTRACTED" ]; then \
-        echo "ERROR: Extraction produced no directory"; \
-        ls /tmp/as_extract; exit 1; \
-    fi && \
     rm -rf /opt/android-studio && \
     mv "/tmp/as_extract/$EXTRACTED" /opt/android-studio && \
     rm -rf /tmp/as_extract && \
-    if [ ! -d /opt/android-studio ]; then \
-        echo "ERROR: Final placement failed"; \
-        ls -la /opt/; exit 1; \
-    fi && \
-    echo "✅ Android Studio installed at /opt/android-studio" && \
     chmod -R 755 /opt/android-studio
 
 RUN mkdir -p /home/$USER/Android/Sdk /home/$USER/Projects /home/$USER/.vnc && \
     chown -R $USER:$USER /home/$USER /opt/android-studio
 
-# Startup script
+# Startup script (owned by developer)
 RUN printf '#!/bin/bash\n\
 set -e\n\
 echo "Starting VNC + Android Studio..."\n\
@@ -76,15 +66,18 @@ cd /home/$USER\n\
 /opt/android-studio/bin/studio.sh &\n\
 \n\
 tail -f /dev/null\n\
-' > /startup.sh && chmod +x /startup.sh
+' > /home/$USER/startup.sh && \
+    chmod +x /home/$USER/startup.sh && \
+    chown $USER:$USER /home/$USER/startup.sh
 
-RUN mkdir -p /etc/supervisor/conf.d && \
+# Logs + Supervisor config (no privilege drop)
+RUN mkdir -p /var/log/supervisor && chown -R $USER:$USER /var/log/supervisor && \
+    mkdir -p /etc/supervisor/conf.d && \
     printf '[supervisord]\n\
 nodaemon=true\n\
-user=root\n\
 \n\
 [program:desktop]\n\
-command=/startup.sh\n\
+command=/home/developer/startup.sh\n\
 autostart=true\n\
 autorestart=true\n\
 stdout_logfile=/var/log/supervisor/desktop.log\n\
@@ -99,4 +92,4 @@ WORKDIR /home/$USER
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
     CMD curl -f http://localhost:7860 || exit 1
 
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/supervisord.conf"]
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

@@ -30,7 +30,7 @@ RUN mkdir -p /opt/noVNC && \
     ln -s /opt/noVNC/vnc.html /opt/noVNC/index.html && \
     curl -fsSL https://github.com/novnc/websockify/archive/v0.11.0.tar.gz | tar -xz -C /opt/noVNC/utils --strip-components=1
 
-# Robust Android Studio download
+# Robust Android Studio download + safe extraction
 RUN mkdir -p /opt && cd /opt && \
     for i in 1 2 3 4 5; do \
         echo "Download attempt $i..." && \
@@ -42,8 +42,9 @@ RUN mkdir -p /opt && cd /opt && \
         echo "Retry..."; sleep 35; \
     done && \
     tar -xzf android-studio.tar.gz && \
-    mv android-studio /opt/android-studio && \
     rm -f android-studio.tar.gz && \
+    rm -rf /opt/android-studio && \
+    mv android-studio /opt/android-studio && \
     chmod -R 755 /opt/android-studio
 
 RUN mkdir -p /home/$USER/Android/Sdk /home/$USER/Projects /home/$USER/.vnc && \
